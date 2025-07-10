@@ -108,3 +108,10 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(output)
 }
+
+// RootHandler responds with 'hello world' at the root path
+func RootHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/plain")
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("hello world"))
+}

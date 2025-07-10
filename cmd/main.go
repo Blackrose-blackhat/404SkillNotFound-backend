@@ -23,6 +23,9 @@ func main() {
 	// Define routes
 	http.HandleFunc("/api/analyze", handlers.AnalyzeHandler)
 
+	// Add root handler
+	http.HandleFunc("/", handlers.RootHandler)
+
 	// Get port from env or default to 3000
 	port := os.Getenv("PORT")
 	if port == "" {
