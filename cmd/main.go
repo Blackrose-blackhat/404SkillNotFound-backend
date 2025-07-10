@@ -5,27 +5,31 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Blackrose-blackhat/404SkillNotFound/backend/internal/handlers"
-
 	"github.com/joho/godotenv"
+	"github.com/Blackrose-blackhat/404SkillNotFound/internal/handlers"
 )
 
 func main() {
-	// Load environment variables from .env file
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Println("⚠️  No .env file found at project root. Using system env vars.")
+	// Load .env
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️  .env file not found, using system environment variables.")
 	}
 
-	// Check if GEMINI_API_KEY is loaded (fail fast if missing)
+	// Check critical env vars
 	if os.Getenv("GEMINI_API_KEY") == "" {
-		log.Fatal("❌ GEMINI_API_KEY not set in environment")
+		log.Fatal("❌ Missing GEMINI_API_KEY in environment")
 	}
 
-	// Define HTTP route
-	http.HandleFunc("/analyze", handlers.AnalyzeHandler)
+	// Define routes
+	http.HandleFunc("/api/analyze", handlers.AnalyzeHandler)
+
+	// Get port from env or default to 3000
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
 
 	// Start server
-	port := "3000"
-	log.Printf("🚀 Server running at http://localhost:%s/analyze\n", port)
+	log.Printf("🚀 AI Roast Judge backend running at http://localhost:%s/api/analyze\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

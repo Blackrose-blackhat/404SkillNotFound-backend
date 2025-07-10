@@ -1,79 +1,110 @@
+// internal/handlers/analyze.go
 package handlers
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
-	"github.com/Blackrose-blackhat/404SkillNotFound/backend/internal/parser"
-	"github.com/Blackrose-blackhat/404SkillNotFound/backend/internal/types"
-	"github.com/Blackrose-blackhat/404SkillNotFound/backend/services"
+	"github.com/google/uuid"
+	"github.com/Blackrose-blackhat/404SkillNotFound/internal/parser"
+	"github.com/Blackrose-blackhat/404SkillNotFound/internal/types"
+	"github.com/Blackrose-blackhat/404SkillNotFound/services"
 )
 
+var ipRequestCount = make(map[string]int)
+var lastRequestTime = make(map[string]time.Time)
+const requestLimit = 10
+const requestWindow = time.Minute
+
 func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Cache-Control", "no-store")
+
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST requests allowed", http.StatusMethodNotAllowed)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Only POST requests allowed"})
 		return
 	}
 
-	err := r.ParseMultipartForm(10 << 20) // 10MB max memory
+	clientIP := strings.Split(r.RemoteAddr, ":")[0]
+	now := time.Now()
+	if t, ok := lastRequestTime[clientIP]; ok && now.Sub(t) < requestWindow {
+		if ipRequestCount[clientIP] >= requestLimit {
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Rate limit exceeded. Try again later."})
+			return
+		}
+		ipRequestCount[clientIP]++
+	} else {
+		ipRequestCount[clientIP] = 1
+		lastRequestTime[clientIP] = now
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // Max 10MB
+	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
-		http.Error(w, "Error parsing form data", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid form data"})
 		return
 	}
 
 	file, _, err := r.FormFile("resume")
 	if err != nil {
-		http.Error(w, "Resume file missing", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Resume file missing"})
 		return
 	}
 	defer file.Close()
 
 	resumeText, err := parser.ExtractResume(file)
 	if err != nil {
-		http.Error(w, "Could not extract resume: "+err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to extract resume"})
 		return
 	}
-	fmt.Println("Resume extracted:\n", resumeText[:300])
 
+	// Optional: read full file size for log/debug
 	resumeBytes, _ := io.ReadAll(file)
 
 	githubUsername := r.FormValue("github_username")
 	roastMode, _ := strconv.ParseBool(r.FormValue("roast_mode"))
 
-	// Optional: fetch GitHub profile
 	githubProfile, err := parser.FetchGithubProfile(githubUsername)
 	if err != nil {
-		fmt.Println("⚠️ GitHub error:", err)
+		log.Println("[⚠️ GitHub]", err)
 	} else {
-		fmt.Printf("✅ Fetched %d repos for %s\n", githubProfile.TotalRepos, githubUsername)
+		log.Printf("✅ GitHub user: %s, repos: %d\n", githubUsername, githubProfile.TotalRepos)
 	}
 
-	// Build the prompt for Gemini
 	prompt := services.BuildPrompt(resumeText, githubProfile, roastMode)
-	fmt.Println("Prompt for AI model:\n", prompt)
-
-	// 🔥 Get actual Gemini response
-	genOutput, err := services.GenerateContent(prompt)
+	responseText, err := services.GenerateContent(prompt)
 	if err != nil {
-		http.Error(w, "AI generation failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	fmt.Println("Raw AI Output:\n", genOutput[:500])
-
-	// Try to parse AI output as JSON
-	var response types.JudgeOutput
-	if err := json.Unmarshal([]byte(genOutput), &response); err != nil {
-		// AI didn't return valid JSON — fail gracefully
-		fmt.Println("❌ Failed to parse AI response:", err)
-		http.Error(w, "AI returned invalid output", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "AI generation failed"})
 		return
 	}
 
-	// Respond with structured output
-	fmt.Printf("✅ Analyzed resume for GitHub: %s | Roast: %v | Size: %d\n", githubUsername, roastMode, len(resumeBytes))
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	var output types.JudgeOutput
+	if err := json.Unmarshal([]byte(responseText), &output); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid AI output format"})
+		log.Println("❌ Unmarshal error:", err)
+		return
+	}
+
+	// Basic analytics logging
+	uuid := uuid.New().String()
+	duration := time.Since(now)
+	logLine := fmt.Sprintf("%s | %s | %s | %s | %d bytes", now.Format(time.RFC3339), clientIP, uuid, duration, len(resumeBytes))
+	log.Println(logLine)
+
+	json.NewEncoder(w).Encode(output)
 }

@@ -1,9 +1,11 @@
-module github.com/Blackrose-blackhat/404SkillNotFound/backend
+module github.com/Blackrose-blackhat/404SkillNotFound
 
 go 1.24.4
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	google.golang.org/genai v1.14.0
 )
 

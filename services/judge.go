@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Blackrose-blackhat/404SkillNotFound/backend/internal/parser"
+	"github.com/Blackrose-blackhat/404SkillNotFound/internal/parser"
 )
 
 func BuildPrompt(resumeText string, github *parser.GithubProfile, roast bool) string {
