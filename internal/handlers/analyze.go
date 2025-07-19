@@ -3,16 +3,13 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
-	
+
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Blackrose-blackhat/404SkillNotFound/internal/parser"
 	"github.com/Blackrose-blackhat/404SkillNotFound/internal/types"
 	"github.com/Blackrose-blackhat/404SkillNotFound/services"
@@ -20,6 +17,7 @@ import (
 
 var ipRequestCount = make(map[string]int)
 var lastRequestTime = make(map[string]time.Time)
+
 const requestLimit = 10
 const requestWindow = time.Minute
 
@@ -81,9 +79,6 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional: read full file size for log/debug
-	resumeBytes, _ := io.ReadAll(file)
-
 	githubUsername := r.FormValue("github_username")
 	roastMode, _ := strconv.ParseBool(r.FormValue("roast_mode"))
 
@@ -102,38 +97,20 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var output types.JudgeOutput
-	if err := json.Unmarshal([]byte(responseText), &output); err != nil {
+	var profile types.TwitterProfile
+	if err := json.Unmarshal([]byte(responseText), &profile); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid AI output format"})
 		log.Println("❌ Unmarshal error:", err)
 		return
 	}
 
-	// Add reaction based on score
-	switch {
-	case output.Score > 70:
-		output.Reaction = "Shower petals"
-	case output.Score >= 50:
-		output.Reaction = "No reaction"
-	case output.Score >= 30:
-		output.Reaction = "Throw tomato"
-	default:
-		output.Reaction = "Throw shoes"
-	}
-
-	// Basic analytics logging
-	uuid := uuid.New().String()
-	duration := time.Since(now)
-	logLine := fmt.Sprintf("%s | %s | %s | %s | %d bytes", now.Format(time.RFC3339), clientIP, uuid, duration, len(resumeBytes))
-	log.Println(logLine)
-
-	json.NewEncoder(w).Encode(output)
+	json.NewEncoder(w).Encode(profile)
 }
 
 // RootHandler responds with 'hello world' at the root path
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/plain")
-    w.WriteHeader(http.StatusOK)
-    w.Write([]byte("hello world"))
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("hello world"))
 }
