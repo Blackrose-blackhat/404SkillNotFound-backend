@@ -21,15 +21,20 @@ func BuildPrompt(resumeText string, github *parser.GithubProfile, roast bool) st
 	}
 
 	b.WriteString("\n### 📦 GitHub Summary:\n")
-	b.WriteString(fmt.Sprintf("Total public repos: %d\n", github.TotalRepos))
-	for i, repo := range github.TopRepos {
-		b.WriteString(fmt.Sprintf("%d. %s - %s - ⭐ %d – %s\n",
-			i+1,
-			repo.Name,
-			nonEmpty(repo.Description, "No description"),
-			repo.Stargazers,
-			nonEmpty(repo.Language, "Unknown language"),
-		))
+	b.WriteString("\n### 📦 GitHub Summary:\n")
+	if github == nil {
+		b.WriteString("No GitHub profile available.\n")
+	} else {
+		b.WriteString(fmt.Sprintf("Total public repos: %d\n", github.TotalRepos))
+		for i, repo := range github.TopRepos {
+			b.WriteString(fmt.Sprintf("%d. %s - %s - ⭐ %d – %s\n",
+				i+1,
+				repo.Name,
+				nonEmpty(repo.Description, "No description"),
+				repo.Stargazers,
+				nonEmpty(repo.Language, "Unknown language"),
+			))
+		}
 	}
 
 	if roast {

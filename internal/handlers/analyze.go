@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,15 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Cache-Control", "no-store")
+
+	// Require internal secret header for extra security
+	// internalSecret := os.Getenv("INTERNAL_SECRET")
+	// fmt.Sprintf(internalSecret);
+	// if internalSecret != "" && r.Header.Get("X-Internal-Secret") != internalSecret {
+	// 	w.WriteHeader(http.StatusUnauthorized)
+	// 	json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
+	// 	return
+	// }
 
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -98,6 +108,18 @@ func AnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid AI output format"})
 		log.Println("❌ Unmarshal error:", err)
 		return
+	}
+
+	// Add reaction based on score
+	switch {
+	case output.Score > 70:
+		output.Reaction = "Shower petals"
+	case output.Score >= 50:
+		output.Reaction = "No reaction"
+	case output.Score >= 30:
+		output.Reaction = "Throw tomato"
+	default:
+		output.Reaction = "Throw shoes"
 	}
 
 	// Basic analytics logging

@@ -7,6 +7,7 @@ type JudgeOutput struct {
 	Feedback       []Feedback     `json:"feedback"`
 	RoastMode      bool           `json:"roast_mode"`
 	Recommendation Recommendation `json:"recommendation"`
+	Reaction       string         `json:"reaction"`
 }
 
 type Grade struct {
